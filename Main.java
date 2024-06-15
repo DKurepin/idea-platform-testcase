@@ -5,6 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.*;
 
 public class Main {
@@ -15,12 +20,12 @@ public class Main {
             JsonNode rootNode = mapper.readTree(new File("/Users/DNK/Desktop/Algorithms/src/main/java/org/example/tickets.json"));
             JsonNode ticketsNode = rootNode.get("tickets");
 
-            Map<String, Integer> minFlightDuration = calculateMinFlightDuration(ticketsNode);
+            Map<String, Long> minFlightDuration = calculateMinFlightDuration(ticketsNode);
 
             int priceDifference = calculatePriceDifference(ticketsNode);
 
             System.out.println("Minimum flight duration for each carrier:");
-            for (Map.Entry<String, Integer> entry : minFlightDuration.entrySet()) {
+            for (Map.Entry<String, Long> entry : minFlightDuration.entrySet()) {
                 System.out.println("Carrier: " + entry.getKey() + ", Min Duration: " + entry.getValue() + " minutes");
             }
 
@@ -30,15 +35,24 @@ public class Main {
         }
     }
 
-    private static Map<String, Integer> calculateMinFlightDuration(JsonNode ticketsNode) {
-        Map<String, Integer> minFlightDuration = new HashMap<>();
+    private static Map<String, Long> calculateMinFlightDuration(JsonNode ticketsNode) {
+        Map<String, Long> minFlightDuration = new HashMap<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yy HH:mm");
+
         for (JsonNode ticketNode : ticketsNode) {
             String origin = ticketNode.get("origin").asText();
             String destination = ticketNode.get("destination").asText();
-            int duration = calculateDuration(ticketNode.get("departure_time").asText(), ticketNode.get("arrival_time").asText());
-
             if ("VVO".equals(origin) && "TLV".equals(destination)) {
                 String carrier = ticketNode.get("carrier").asText();
+                String departureDateTime = normalizeDateTime(ticketNode.get("departure_date").asText(), ticketNode.get("departure_time").asText());
+                String arrivalDateTime = normalizeDateTime(ticketNode.get("arrival_date").asText(), ticketNode.get("arrival_time").asText());
+
+                ZonedDateTime departure = LocalDateTime.parse(departureDateTime, formatter).atZone(ZoneId.of("Asia/Vladivostok"));
+
+                ZonedDateTime arrival = LocalDateTime.parse(arrivalDateTime, formatter).atZone(ZoneId.of("Asia/Jerusalem"));
+
+                long duration = Duration.between(departure, arrival).toMinutes();
+
                 if (!minFlightDuration.containsKey(carrier) || duration < minFlightDuration.get(carrier)) {
                     minFlightDuration.put(carrier, duration);
                 }
@@ -47,14 +61,12 @@ public class Main {
         return minFlightDuration;
     }
 
-    private static int calculateDuration(String departureTime, String arrivalTime) {
-        String[] depTime = departureTime.split(":");
-        String[] arrTime = arrivalTime.split(":");
-        int depHour = Integer.parseInt(depTime[0]);
-        int depMinute = Integer.parseInt(depTime[1]);
-        int arrHour = Integer.parseInt(arrTime[0]);
-        int arrMinute = Integer.parseInt(arrTime[1]);
-        return (arrHour - depHour) * 60 + (arrMinute - depMinute);
+    private static String normalizeDateTime(String date, String time) {
+        String[] timeParts = time.split(":");
+        if (timeParts[0].length() == 1) {
+            time = "0" + time;
+        }
+        return date + " " + time;
     }
 
     private static int calculatePriceDifference(JsonNode ticketsNode) {
